@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>404 axivisual</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+
+    body {
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: #000;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    /* ---------- Latar ---------- */
+    .stage { position: fixed; inset: 0; background: #000; overflow: hidden; }
+
+    /* fallback (tampil kalau video belum termuat) */
+    .fallback {
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at 30% 30%, #3a3a3a, transparent 55%),
+                  radial-gradient(circle at 75% 70%, #202020, transparent 55%), #000;
+      animation: breathe 10s ease-in-out infinite alternate;
+    }
+    @keyframes breathe { to { transform: scale(1.15); } }
+
+    .clip {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      opacity: 0;
+      transition: opacity .9s ease;
+      /* Mau videonya ikut hitam-putih? hapus tanda komentar di baris bawah:
+      filter: grayscale(1); */
+    }
+    .clip.on.ready { opacity: 1; }
+
+    .scrim {
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse at center, rgba(0,0,0,.35) 0%, rgba(0,0,0,.78) 100%);
+    }
+
+    /* ---------- Konten ---------- */
+    .center {
+      position: relative; z-index: 1;
+      min-height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 24px 6vw;
+    }
+    .code {
+      font-size: clamp(120px, 28vw, 340px);
+      line-height: .9;
+      letter-spacing: -.06em;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 10px 50px rgba(0,0,0,.5);
+    }
+    .title {
+      margin-top: 18px;
+      font-size: clamp(20px, 3.2vw, 40px);
+      letter-spacing: .04em;
+      line-height: 1.2;
+      font-weight: 400;
+      text-shadow: 0 4px 24px rgba(0,0,0,.6);
+    }
+    .title b { font-weight: 700; }
+  </style>
+</head>
+<body>
+
+  <div class="stage" aria-hidden="true">
+    <div class="fallback"></div>
+    <video class="clip" id="clipA" data-src="videos/video-1.mp4" muted playsinline preload="auto"></video>
+    <video class="clip" id="clipB" data-src="videos/video-2.mp4" playsinline preload="auto"></video>
+    <div class="scrim"></div>
+  </div>
+
+  <main class="center">
+    <h1 class="code">404</h1>
+    <h2 class="title">SEDANG DALAM PERBA<b><i>IKAN</i></b></h2>
+  </main>
+
+  <script>
+    /* video 1 → tanpa suara, video 2 → dengan suara, berulang bergantian.
+       Browser melarang suara otomatis, jadi suara aktif begitu pengunjung
+       pertama kali mengklik / mengetuk / menekan tombol di halaman. */
+    const clips = [
+      { el: document.getElementById('clipA'), sound: false, failed: false },
+      { el: document.getElementById('clipB'), sound: true,  failed: false }
+    ];
+    let idx = 0, soundOn = false;
+
+    const applyAudio = () => clips.forEach(c => { c.el.muted = !(c.sound && soundOn); c.el.volume = 1; });
+
+    function nextIndex(from) {
+      for (let s = 1; s <= clips.length; s++) {
+        const i = (from + s) % clips.length;
+        if (!clips[i].failed) return i;
+      }
+      return -1;
+    }
+
+    async function show(i) {
+      const prev = idx; idx = i;
+      clips.forEach((c, k) => c.el.classList.toggle('on', k === i));
+      const cur = clips[i].el;
+      cur.currentTime = 0;
+      applyAudio();
+      try { await cur.play(); }
+      catch (_) { cur.muted = true; try { await cur.play(); } catch (_) {} }
+      if (prev !== i) setTimeout(() => { if (idx !== prev) clips[prev].el.pause(); }, 1000);
+    }
+
+    function advance() {
+      const n = nextIndex(idx);
+      if (n === -1) return;
+      if (n === idx) { clips[idx].el.currentTime = 0; clips[idx].el.play().catch(() => {}); return; }
+      show(n);
+    }
+
+    clips.forEach((c, i) => {
+      c.el.addEventListener('loadeddata', () => c.el.classList.add('ready'));
+      c.el.addEventListener('ended', () => { if (i === idx) advance(); });
+      c.el.addEventListener('error', () => {
+        c.failed = true;
+        console.warn('[video] gagal memuat:', c.el.dataset.src);
+        if (i === idx) advance();
+      });
+    });
+
+    /* interaksi pertama → nyalakan suara */
+    function unlockSound() {
+      soundOn = true;
+      applyAudio();
+      clips[idx].el.play().catch(() => {});
+    }
+    ['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, unlockSound, { once: true }));
+
+    document.addEventListener('visibilitychange', () => {
+      const el = clips[idx].el;
+      if (document.hidden) el.pause(); else el.play().catch(() => {});
+    });
+
+    /* mulai (dilewati bila pengguna mengaktifkan "kurangi animasi") */
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      clips.forEach(c => { c.el.src = c.el.dataset.src; c.el.load(); });
+      show(0);
+    }
+  </script>
+</body>
+</html>
